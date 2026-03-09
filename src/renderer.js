@@ -40,6 +40,18 @@ const escapeHtml = (value) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
+const renderFatalError = (message, payload) => {
+  app.innerHTML = `
+    <main class="fatal-shell">
+      <section class="fatal-card">
+        <p class="eyebrow">Startup error</p>
+        <h1>${escapeHtml(message)}</h1>
+        <pre>${escapeHtml(payload ? JSON.stringify(payload, null, 2) : '')}</pre>
+      </section>
+    </main>
+  `;
+};
+
 const addLog = (type, message, payload) => {
   state.logs = [
     {
@@ -455,19 +467,32 @@ const saveSettings = async () => {
 };
 
 const bootstrap = async () => {
-  state.settings = await window.certificateClient.getSettings();
-  state.printers = await window.certificateClient.listPrinters();
+  try {
+    if (!window.certificateClient) {
+      throw new Error('Preload bridge was not exposed on window.certificateClient');
+    }
 
-  window.certificateClient.onPrintSuccess((payload) => {
-    addLog('success', 'Silent print completed', payload);
-  });
+    console.log('[renderer] preload bridge ready');
 
-  window.certificateClient.onPrintError((payload) => {
-    addLog('error', 'Silent print failed', payload);
-  });
+    state.settings = await window.certificateClient.getSettings();
+    state.printers = await window.certificateClient.listPrinters();
 
-  connectSocket();
-  render();
+    window.certificateClient.onPrintSuccess((payload) => {
+      addLog('success', 'Silent print completed', payload);
+    });
+
+    window.certificateClient.onPrintError((payload) => {
+      addLog('error', 'Silent print failed', payload);
+    });
+
+    connectSocket();
+    render();
+  } catch (error) {
+    console.error('[renderer] bootstrap failed', error);
+    renderFatalError(error.message, {
+      stack: error.stack,
+    });
+  }
 };
 
 bootstrap();

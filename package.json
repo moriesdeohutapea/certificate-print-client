@@ -7,6 +7,8 @@
   "private": true,
   "scripts": {
     "start": "electron-forge start",
+    "start:local": "dotenv -e .env.local -- electron-forge start",
+    "start:prod": "dotenv -e .env.prod -- electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
@@ -30,6 +32,7 @@
     "@electron/fuses": "^1.8.0",
     "@vercel/webpack-asset-relocator-loader": "^1.7.3",
     "css-loader": "^6.11.0",
+    "dotenv-cli": "^8.0.0",
     "electron": "40.8.0",
     "node-loader": "^2.1.0",
     "style-loader": "^3.3.4"

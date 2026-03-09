@@ -8,8 +8,13 @@ if (require('electron-squirrel-startup')) {
 
 const SETTINGS_FILE_NAME = 'settings.json';
 const PREVIEW_HTML_FILE_NAME = 'print-preview.html';
+const LOCAL_WS_HOST = 'ws://127.0.0.1:8000/oceantic/v1/ws/platform/4';
+const PROD_WS_HOST = 'wss://api.oceanticsports.com/oceantic/v1/ws/platform/4';
+const runtimeWebSocketHost =
+  process.env.CERTIFICATE_WS_HOST ||
+  (process.env.CERTIFICATE_ENV === 'prod' ? PROD_WS_HOST : LOCAL_WS_HOST);
 const DEFAULT_SETTINGS = {
-  websocketHost: 'ws://127.0.0.1:8000/oceantic/v1/ws/platform/4',
+  websocketHost: runtimeWebSocketHost,
   reconnectIntervalMs: 5000,
   channel: '4',
   platform4Mapping: '4',

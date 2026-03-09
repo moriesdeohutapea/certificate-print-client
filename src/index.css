@@ -69,13 +69,37 @@ pre {
 }
 
 .loading-shell,
-.shell {
+.shell,
+.fatal-shell {
   min-height: 100vh;
 }
 
 .loading-shell {
   display: grid;
   place-items: center;
+}
+
+.fatal-shell {
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.fatal-card {
+  width: min(720px, 100%);
+  padding: 2rem;
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.fatal-card h1 {
+  margin: 0.2rem 0 1rem;
+}
+
+.fatal-card pre {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .shell {
