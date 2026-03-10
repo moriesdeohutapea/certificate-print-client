@@ -4,12 +4,30 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' http://localhost:* http://127.0.0.1:*; script-src 'self' 'unsafe-eval' http://localhost:* http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*; connect-src * ws: wss: http://localhost:* http://127.0.0.1:*;"
+      content="default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:*; script-src 'self' 'unsafe-eval' 'unsafe-inline' http://localhost:* http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob: http://localhost:* http://127.0.0.1:*; font-src 'self' data: blob: http://localhost:* http://127.0.0.1:*; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* ws://localhost:* wss://api.oceanticsports.com;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Certificate Print Client</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main
+        style="
+          min-height: 100vh;
+          display: grid;
+          place-items: center;
+          padding: 32px;
+          font-family: Georgia, 'Times New Roman', serif;
+          background: linear-gradient(180deg, #f6eddc, #efe5d2);
+          color: #1b1a17;
+          text-align: center;
+        "
+      >
+        <div>
+          <h1 style="margin: 0 0 12px">Certificate Print Client</h1>
+          <p style="margin: 0">Renderer bundle is loading...</p>
+        </div>
+      </main>
+    </div>
   </body>
 </html>

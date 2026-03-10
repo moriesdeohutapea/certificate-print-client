@@ -8,19 +8,48 @@ if (require('electron-squirrel-startup')) {
 
 const SETTINGS_FILE_NAME = 'settings.json';
 const PREVIEW_HTML_FILE_NAME = 'print-preview.html';
+const SPLASH_MIN_DURATION_MS = 2000;
 const LOCAL_WS_HOST = 'ws://127.0.0.1:8000/oceantic/v1/ws/platform/4';
 const PROD_WS_HOST = 'wss://api.oceanticsports.com/oceantic/v1/ws/platform/4';
 const runtimeWebSocketHost =
   process.env.CERTIFICATE_WS_HOST ||
   (process.env.CERTIFICATE_ENV === 'prod' ? PROD_WS_HOST : LOCAL_WS_HOST);
+const isProdEnvironment = process.env.CERTIFICATE_ENV === 'prod';
+const SPLASH_HTML = `<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: Georgia, "Times New Roman", serif;
+        background:
+          radial-gradient(circle at top left, rgba(178, 138, 71, 0.24), transparent 28%),
+          linear-gradient(180deg, #f8efdf, #efe5d2);
+        color: #7e5d2a;
+      }
+      .title {
+        font-size: 32px;
+        text-align: center;
+        letter-spacing: 0.04em;
+        padding: 0 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="title">Welcome Oceantic Auto Print Certificate</div>
+  </body>
+</html>`;
 const DEFAULT_SETTINGS = {
-  websocketHost: runtimeWebSocketHost,
   reconnectIntervalMs: 5000,
   channel: '4',
   platform4Mapping: '4',
   defaultPrinter: '',
   paperSize: 'A4',
-  orientation: 'landscape',
+  orientation: 'portrait',
   customPaperWidthMm: 297,
   customPaperHeightMm: 210,
   fontFamily: '"Helvetica Neue", Arial, sans-serif',
@@ -32,22 +61,28 @@ const DEFAULT_SETTINGS = {
   positions: {
     athleteName: { x: 50, y: 42, size: 34 },
     clubName: { x: 50, y: 51, size: 22 },
-    award: { x: 50, y: 61, size: 26 },
     rank: { x: 50, y: 70, size: 22 },
-    finalTime: { x: 50, y: 79, size: 20 },
   },
 };
 
 let mainWindow;
+let splashWindow;
 let settingsPath;
 let printTemplatePath;
 let currentSettings = DEFAULT_SETTINGS;
+let splashShownAt = 0;
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const safeCloseWindow = (windowRef) => {
+  if (windowRef && !windowRef.isDestroyed()) {
+    windowRef.close();
+  }
+};
 
 const mergeSettings = (stored = {}) => ({
   ...clone(DEFAULT_SETTINGS),
   ...stored,
+  websocketHost: runtimeWebSocketHost,
   positions: {
     ...clone(DEFAULT_SETTINGS.positions),
     ...(stored.positions || {}),
@@ -76,12 +111,17 @@ const loadSettings = () => {
 
 const saveSettings = (nextSettings) => {
   currentSettings = mergeSettings(nextSettings);
-  fs.writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2));
+  const { websocketHost, ...persistedSettings } = currentSettings;
+  fs.writeFileSync(settingsPath, JSON.stringify(persistedSettings, null, 2));
   return currentSettings;
 };
 
 const buildPrintHtml = (certificate, settings) => {
   const positions = settings.positions || DEFAULT_SETTINGS.positions;
+  const rankValue =
+    certificate.rank === undefined || certificate.rank === null || certificate.rank === ''
+      ? ''
+      : `Juara ${certificate.rank}`;
   const safe = (value) =>
     String(value ?? '')
       .replaceAll('&', '&amp;')
@@ -99,7 +139,6 @@ const buildPrintHtml = (certificate, settings) => {
       class="${className}"
       style="left:${position.x}%;top:${position.y}%;font-size:${position.size}px;"
     >
-      <span class="field-label">${safe(label)}</span>
       <span class="field-value">${safe(value)}</span>
     </div>
   `;
@@ -123,19 +162,23 @@ const buildPrintHtml = (certificate, settings) => {
           height: 100vh;
           overflow: hidden;
           background:
+            repeating-linear-gradient(
+              to right,
+              rgba(49, 64, 79, 0.22) 0,
+              rgba(49, 64, 79, 0.22) 1px,
+              transparent 1px,
+              transparent 1cm
+            ),
+            repeating-linear-gradient(
+              to bottom,
+              rgba(49, 64, 79, 0.22) 0,
+              rgba(49, 64, 79, 0.22) 1px,
+              transparent 1px,
+              transparent 1cm
+            ),
             radial-gradient(circle at top left, rgba(197, 168, 109, 0.22), transparent 30%),
             radial-gradient(circle at bottom right, rgba(11, 65, 96, 0.12), transparent 24%),
             linear-gradient(145deg, #fffef8, #f6f0da);
-        }
-        .frame {
-          position: absolute;
-          inset: 18px;
-          border: 10px solid #c5a86d;
-        }
-        .inner-frame {
-          position: absolute;
-          inset: 40px;
-          border: 2px solid rgba(27, 26, 23, 0.22);
         }
         .title {
           position: absolute;
@@ -191,15 +234,11 @@ const buildPrintHtml = (certificate, settings) => {
     </head>
     <body>
       <div class="sheet">
-        <div class="frame"></div>
-        <div class="inner-frame"></div>
         <div class="title">Certificate</div>
         <div class="subtitle">Official result acknowledgment</div>
         ${fieldBlock('field', 'Athlete Name', certificate.athlete_name, positions.athleteName)}
         ${fieldBlock('field', 'Club Name', certificate.club_name, positions.clubName)}
-        ${fieldBlock('field', 'Award', certificate.award, positions.award)}
-        ${fieldBlock('field', 'Rank', certificate.rank, positions.rank)}
-        ${fieldBlock('field', 'Final Time', certificate.final_time, positions.finalTime)}
+        ${fieldBlock('field', 'Rank', rankValue, positions.rank)}
         <div class="footer">${safe(settings.channel || 'platform_4')}</div>
       </div>
     </body>
@@ -227,16 +266,31 @@ const listPrinters = async () => {
   }));
 };
 
+const getPrintWindowOptions = () => ({
+  show: false,
+  webPreferences: {
+    sandbox: true,
+  },
+});
+
+const getMainWindowOptions = () => ({
+  width: 1440,
+  height: 960,
+  minWidth: 1100,
+  minHeight: 760,
+  show: false,
+  backgroundColor: '#f2ece0',
+  webPreferences: {
+    preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+    sandbox: false,
+  },
+});
+
 const printCertificate = async (certificate, messageMeta = {}) => {
   const html = buildPrintHtml(certificate, currentSettings);
   fs.writeFileSync(printTemplatePath, html);
 
-  const printWindow = new BrowserWindow({
-    show: false,
-    webPreferences: {
-      sandbox: true,
-    },
-  });
+  const printWindow = new BrowserWindow(getPrintWindowOptions());
 
   try {
     await printWindow.loadFile(printTemplatePath);
@@ -271,10 +325,31 @@ const printCertificate = async (certificate, messageMeta = {}) => {
       failedAt: new Date().toISOString(),
     });
   } finally {
-    if (!printWindow.isDestroyed()) {
-      printWindow.close();
-    }
+    safeCloseWindow(printWindow);
   }
+};
+
+const createSplashWindow = () => {
+  splashShownAt = Date.now();
+  splashWindow = new BrowserWindow({
+    width: 640,
+    height: 320,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    show: true,
+    backgroundColor: '#f2ece0',
+  });
+
+  splashWindow.center();
+  console.log('[main] splash window created');
+  splashWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(SPLASH_HTML)}`);
+
+  splashWindow.webContents.on('did-finish-load', () => {
+    console.log('[main] splash finished loading');
+  });
 };
 
 const createWindow = () => {
@@ -282,15 +357,18 @@ const createWindow = () => {
   console.log('[main] MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY:', MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
   console.log('[main] MAIN_WINDOW_WEBPACK_ENTRY:', MAIN_WINDOW_WEBPACK_ENTRY);
 
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
-    minWidth: 1100,
-    minHeight: 760,
-    backgroundColor: '#f2ece0',
-    webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
-    },
+  mainWindow = new BrowserWindow(getMainWindowOptions());
+
+  mainWindow.once('ready-to-show', () => {
+    console.log('[main] main window ready to show');
+    const elapsed = Date.now() - splashShownAt;
+    const remainingDelay = Math.max(0, SPLASH_MIN_DURATION_MS - elapsed);
+
+    setTimeout(() => {
+      safeCloseWindow(splashWindow);
+      splashWindow = null;
+      mainWindow.show();
+    }, remainingDelay);
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -305,6 +383,10 @@ const createWindow = () => {
   });
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+
+  if (!isProdEnvironment) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 };
 
 ipcMain.handle('settings:get', async () => loadSettings());
@@ -319,6 +401,7 @@ app.whenReady().then(() => {
   console.log('[main] app ready');
   ensureAssets();
   loadSettings();
+  createSplashWindow();
   createWindow();
 
   app.on('activate', () => {

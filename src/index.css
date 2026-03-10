@@ -204,16 +204,30 @@ pre {
 .preview-certificate,
 .preview-empty {
   position: relative;
-  min-height: 680px;
   border-radius: 22px;
   overflow: hidden;
   background:
+    repeating-linear-gradient(
+      to right,
+      rgba(49, 64, 79, 0.18) 0,
+      rgba(49, 64, 79, 0.18) 1px,
+      transparent 1px,
+      transparent 1cm
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(49, 64, 79, 0.18) 0,
+      rgba(49, 64, 79, 0.18) 1px,
+      transparent 1px,
+      transparent 1cm
+    ),
     radial-gradient(circle at top left, rgba(197, 168, 109, 0.22), transparent 30%),
     radial-gradient(circle at bottom right, rgba(11, 65, 96, 0.12), transparent 24%),
     linear-gradient(145deg, #fffef8, #f6f0da);
 }
 
 .preview-empty {
+  min-height: 680px;
   display: grid;
   place-items: center;
   text-align: center;
@@ -225,44 +239,11 @@ pre {
   font-size: 1.3rem;
 }
 
-.preview-frame,
-.preview-inner-frame {
-  position: absolute;
-}
-
-.preview-frame {
-  inset: 18px;
-  border: 10px solid #c5a86d;
-}
-
-.preview-inner-frame {
-  inset: 40px;
-  border: 2px solid rgba(27, 26, 23, 0.22);
-}
-
-.preview-title,
-.preview-subtitle,
 .preview-field {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
-}
-
-.preview-title {
-  top: 12%;
-  font-size: 44px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: #8a6b2f;
-}
-
-.preview-subtitle {
-  top: 22%;
-  font-size: 16px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #31404f;
 }
 
 .preview-field {
@@ -271,12 +252,6 @@ pre {
   flex-direction: column;
   gap: 6px;
   align-items: center;
-}
-
-.preview-label {
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
 }
 
 .preview-value {

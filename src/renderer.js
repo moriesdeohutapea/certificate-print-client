@@ -10,19 +10,29 @@ const fontOptions = [
   '"Trebuchet MS", sans-serif',
   'Verdana, sans-serif',
 ];
+const paperDimensionsMm = {
+  A4: { width: 210, height: 297 },
+  A5: { width: 148, height: 210 },
+  Letter: { width: 216, height: 279 },
+  Legal: { width: 216, height: 356 },
+};
 const positionKeys = [
   ['athleteName', 'Athlete name'],
   ['clubName', 'Club name'],
-  ['award', 'Award'],
   ['rank', 'Rank'],
-  ['finalTime', 'Final time'],
 ];
+const EXAMPLE_CERTIFICATE = {
+  athlete_name: 'Budi Santoso',
+  club_name: 'Tirta SC',
+  rank: 1,
+};
 
 const state = {
   settings: null,
   printers: [],
   socket: null,
   reconnectTimer: null,
+  shouldConnect: false,
   connectionStatus: 'disconnected',
   reconnectCount: 0,
   logs: [],
@@ -52,6 +62,34 @@ const renderFatalError = (message, payload) => {
   `;
 };
 
+const getPaperDimensions = (settings) => {
+  if (settings.paperSize === 'Custom') {
+    return {
+      width: Number(settings.customPaperWidthMm) || 297,
+      height: Number(settings.customPaperHeightMm) || 210,
+    };
+  }
+
+  return paperDimensionsMm[settings.paperSize] || paperDimensionsMm.A4;
+};
+
+const getPreviewLayoutStyle = (settings) => {
+  const { width, height } = getPaperDimensions(settings);
+  const isLandscape = (settings.orientation || 'landscape') === 'landscape';
+  const previewWidth = isLandscape ? Math.max(width, height) : Math.min(width, height);
+  const previewHeight = isLandscape ? Math.min(width, height) : Math.max(width, height);
+
+  return `aspect-ratio:${previewWidth} / ${previewHeight};width:100%;max-width:100%;`;
+};
+
+const formatRankValue = (rank) => {
+  if (rank === undefined || rank === null || rank === '') {
+    return '';
+  }
+
+  return `Juara ${rank}`;
+};
+
 const addLog = (type, message, payload) => {
   state.logs = [
     {
@@ -63,6 +101,24 @@ const addLog = (type, message, payload) => {
     },
     ...state.logs,
   ].slice(0, 50);
+  render();
+};
+
+const disconnectSocket = (reason = 'Socket disconnected by user') => {
+  window.clearTimeout(state.reconnectTimer);
+  state.shouldConnect = false;
+
+  if (state.socket) {
+    state.socket.onopen = null;
+    state.socket.onmessage = null;
+    state.socket.onerror = null;
+    state.socket.onclose = null;
+    state.socket.close();
+    state.socket = null;
+  }
+
+  state.connectionStatus = 'disconnected';
+  addLog('info', reason, null);
   render();
 };
 
@@ -95,23 +151,26 @@ const matchesChannel = (message, settings) => {
 };
 
 const certificateMarkup = (certificate, settings) => {
+  const previewStyle = [
+    `font-family:${escapeHtml(settings.fontFamily)}`,
+    `color:${escapeHtml(settings.textColor)}`,
+    getPreviewLayoutStyle(settings),
+  ].join(';');
+
   if (!certificate || !settings) {
     return `
-      <div class="preview-empty">
-        <p>No certificate received yet.</p>
-        <span>Incoming PRINT_CERTIFICATE payloads will appear here before silent printing.</span>
+      <div class="preview-empty" style="${previewStyle}">
+        <div>
+          <p>No certificate received yet.</p>
+          <span>Incoming PRINT_CERTIFICATE payloads will appear here before silent printing.</span>
+        </div>
       </div>
     `;
   }
 
   const positions = settings.positions;
-  const previewStyle = [
-    `font-family:${escapeHtml(settings.fontFamily)}`,
-    `color:${escapeHtml(settings.textColor)}`,
-  ].join(';');
   const field = (label, value, position) => `
     <div class="preview-field" style="left:${position.x}%;top:${position.y}%;font-size:${position.size}px;">
-      <span class="preview-label" style="color:${escapeHtml(settings.labelColor)}">${escapeHtml(label)}</span>
       <span class="preview-value">${escapeHtml(value)}</span>
     </div>
   `;
@@ -120,15 +179,9 @@ const certificateMarkup = (certificate, settings) => {
     <div class="preview-certificate paper-${(settings.paperSize || 'A4').toLowerCase()} orientation-${escapeHtml(
       settings.orientation || 'landscape',
     )}" style="${previewStyle}">
-      <div class="preview-frame"></div>
-      <div class="preview-inner-frame"></div>
-      <div class="preview-title" style="font-family:${escapeHtml(settings.titleFontFamily)};color:${escapeHtml(settings.titleColor)}">Certificate</div>
-      <div class="preview-subtitle" style="color:${escapeHtml(settings.subtitleColor)}">Official result acknowledgment</div>
       ${field('Athlete Name', certificate.athlete_name, positions.athleteName)}
       ${field('Club Name', certificate.club_name, positions.clubName)}
-      ${field('Award', certificate.award, positions.award)}
-      ${field('Rank', certificate.rank, positions.rank)}
-      ${field('Final Time', certificate.final_time, positions.finalTime)}
+      ${field('Rank', formatRankValue(certificate.rank), positions.rank)}
     </div>
   `;
 };
@@ -156,9 +209,6 @@ const render = () => {
       return `
         <div class="position-card">
           <h4>${escapeHtml(label)}</h4>
-          <label>X (%)
-            <input data-setting="position-x" data-key="${key}" type="number" min="0" max="100" step="1" value="${position.x}" />
-          </label>
           <label>Y (%)
             <input data-setting="position-y" data-key="${key}" type="number" min="0" max="100" step="1" value="${position.y}" />
           </label>
@@ -197,9 +247,10 @@ const render = () => {
         </div>
         <div class="status-panel">
           <div class="status-pill status-${escapeHtml(state.connectionStatus)}">${escapeHtml(state.connectionStatus)}</div>
+          <p>Socket: ${state.shouldConnect ? 'ON' : 'OFF'}</p>
           <p>Reconnect attempts: ${state.reconnectCount}</p>
-          <button id="connect-button" class="secondary-button">
-            ${state.connectionStatus === 'connected' ? 'Reconnect socket' : 'Connect socket'}
+          <button id="toggle-socket-button" class="secondary-button">
+            ${state.shouldConnect ? 'Turn socket off' : 'Turn socket on'}
           </button>
         </div>
       </section>
@@ -211,6 +262,7 @@ const render = () => {
               <p class="eyebrow">Live preview</p>
               <h2>Certificate layout</h2>
             </div>
+            <button id="example-data-button" class="secondary-button">Example data</button>
           </div>
           ${certificateMarkup(state.preview, state.settings)}
         </div>
@@ -225,18 +277,6 @@ const render = () => {
           </div>
 
           <div class="settings-form">
-            <label>WebSocket host
-              <input data-setting="websocketHost" type="text" value="${escapeHtml(state.settings.websocketHost)}" placeholder="ws://127.0.0.1:8000/oceantic/v1/ws/platform/4" />
-            </label>
-            <label>Channel
-              <input data-setting="channel" type="text" value="${escapeHtml(state.settings.channel)}" placeholder="platform_4" />
-            </label>
-            <label>platform_4 mapping
-              <input data-setting="platform4Mapping" type="text" value="${escapeHtml(state.settings.platform4Mapping)}" placeholder="platform_4" />
-            </label>
-            <label>Reconnect delay (ms)
-              <input data-setting="reconnectIntervalMs" type="number" min="1000" step="500" value="${state.settings.reconnectIntervalMs}" />
-            </label>
             <label>Default printer
               <select data-setting="defaultPrinter">${printerOptions}</select>
             </label>
@@ -259,12 +299,6 @@ const render = () => {
                   )
                   .join('')}
               </select>
-            </label>
-            <label>Custom width (mm)
-              <input data-setting="customPaperWidthMm" type="number" min="50" step="1" value="${state.settings.customPaperWidthMm}" />
-            </label>
-            <label>Custom height (mm)
-              <input data-setting="customPaperHeightMm" type="number" min="50" step="1" value="${state.settings.customPaperHeightMm}" />
             </label>
             <label>Body font
               <select data-setting="fontFamily">
@@ -323,16 +357,28 @@ const render = () => {
 
 const bindEvents = () => {
   document.querySelector('#save-settings')?.addEventListener('click', saveSettings);
-  document.querySelector('#connect-button')?.addEventListener('click', connectSocket);
+  document.querySelector('#example-data-button')?.addEventListener('click', () => {
+    state.preview = { ...EXAMPLE_CERTIFICATE };
+    addLog('info', 'Example certificate data loaded', state.preview);
+    render();
+  });
+  document.querySelector('#toggle-socket-button')?.addEventListener('click', () => {
+    if (state.shouldConnect) {
+      disconnectSocket();
+      return;
+    }
+
+    state.shouldConnect = true;
+    state.reconnectCount = 0;
+    connectSocket();
+  });
 
   document.querySelectorAll('[data-setting]').forEach((element) => {
     element.addEventListener('input', (event) => {
       const { setting, key } = event.target.dataset;
       const { value } = event.target;
 
-      if (setting === 'position-x') {
-        state.settings.positions[key].x = Number(value);
-      } else if (setting === 'position-y') {
+      if (setting === 'position-y') {
         state.settings.positions[key].y = Number(value);
       } else if (setting === 'position-size') {
         state.settings.positions[key].size = Number(value);
@@ -346,9 +392,7 @@ const bindEvents = () => {
         state.settings[setting] = value;
       }
 
-      if (state.preview) {
-        render();
-      }
+      render();
     });
   });
 };
@@ -389,6 +433,10 @@ const handlePrintMessage = async (message) => {
 };
 
 const scheduleReconnect = () => {
+  if (!state.shouldConnect) {
+    return;
+  }
+
   window.clearTimeout(state.reconnectTimer);
   state.reconnectTimer = window.setTimeout(() => {
     state.reconnectCount += 1;
@@ -397,6 +445,12 @@ const scheduleReconnect = () => {
 };
 
 const connectSocket = () => {
+  if (!state.shouldConnect) {
+    state.connectionStatus = 'disconnected';
+    render();
+    return;
+  }
+
   window.clearTimeout(state.reconnectTimer);
 
   if (state.socket) {
@@ -462,12 +516,16 @@ const saveSettings = async () => {
   state.printers = await window.certificateClient.listPrinters();
   state.isSaving = false;
   addLog('success', 'Settings saved', state.settings);
-  connectSocket();
+  if (state.shouldConnect) {
+    connectSocket();
+  }
   render();
 };
 
 const bootstrap = async () => {
   try {
+    render();
+
     if (!window.certificateClient) {
       throw new Error('Preload bridge was not exposed on window.certificateClient');
     }
@@ -485,7 +543,6 @@ const bootstrap = async () => {
       addLog('error', 'Silent print failed', payload);
     });
 
-    connectSocket();
     render();
   } catch (error) {
     console.error('[renderer] bootstrap failed', error);

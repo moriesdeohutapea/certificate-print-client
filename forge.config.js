@@ -34,6 +34,8 @@ module.exports = {
       config: {
         port: 3002,
         loggerPort: 9001,
+        devContentSecurityPolicy:
+          "default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* ws://localhost:* https://api.oceanticsports.com wss://api.oceanticsports.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' http://localhost:* http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob: http://localhost:* http://127.0.0.1:* https://api.oceanticsports.com; font-src 'self' data: blob: http://localhost:* http://127.0.0.1:*; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:* https://api.oceanticsports.com wss://api.oceanticsports.com;",
         devServer: {
           host: '127.0.0.1',
         },
