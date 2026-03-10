@@ -20,11 +20,13 @@ const positionKeys = [
   ['athleteName', 'Athlete name'],
   ['clubName', 'Club name'],
   ['rank', 'Rank'],
+  ['competitionName', 'Competition name'],
 ];
 const EXAMPLE_CERTIFICATE = {
   athlete_name: 'Budi Santoso',
   club_name: 'Tirta SC',
   rank: 1,
+  competition_name: '50m Freestyle',
 };
 
 const state = {
@@ -182,6 +184,7 @@ const certificateMarkup = (certificate, settings) => {
       ${field('Athlete Name', certificate.athlete_name, positions.athleteName)}
       ${field('Club Name', certificate.club_name, positions.clubName)}
       ${field('Rank', formatRankValue(certificate.rank), positions.rank)}
+      ${field('Competition Name', certificate.competition_name, positions.competitionName)}
     </div>
   `;
 };
@@ -310,27 +313,8 @@ const render = () => {
                   .join('')}
               </select>
             </label>
-            <label>Title font
-              <select data-setting="titleFontFamily">
-                ${fontOptions
-                  .map(
-                    (font) =>
-                      `<option value="${escapeHtml(font)}" ${font === state.settings.titleFontFamily ? 'selected' : ''}>${escapeHtml(font)}</option>`,
-                  )
-                  .join('')}
-              </select>
-            </label>
             <label>Text color
-              <input data-setting="textColor" type="color" value="${escapeHtml(state.settings.textColor)}" />
-            </label>
-            <label>Label color
-              <input data-setting="labelColor" type="color" value="${escapeHtml(state.settings.labelColor)}" />
-            </label>
-            <label>Title color
-              <input data-setting="titleColor" type="color" value="${escapeHtml(state.settings.titleColor)}" />
-            </label>
-            <label>Subtitle color
-              <input data-setting="subtitleColor" type="color" value="${escapeHtml(state.settings.subtitleColor)}" />
+              <input data-setting="textColor" type="text" value="${escapeHtml(state.settings.textColor)}" placeholder="#000000" />
             </label>
           </div>
 
@@ -377,6 +361,17 @@ const bindEvents = () => {
     element.addEventListener('input', (event) => {
       const { setting, key } = event.target.dataset;
       const { value } = event.target;
+
+      // Avoid full re-render while typing hex color; re-rendering rebuilds DOM and drops focus.
+      if (setting === 'textColor') {
+        state.settings.textColor = value;
+        const previewElement =
+          document.querySelector('.preview-certificate') || document.querySelector('.preview-empty');
+        if (previewElement) {
+          previewElement.style.color = value;
+        }
+        return;
+      }
 
       if (setting === 'position-y') {
         state.settings.positions[key].y = Number(value);

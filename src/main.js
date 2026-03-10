@@ -62,6 +62,7 @@ const DEFAULT_SETTINGS = {
     athleteName: { x: 50, y: 42, size: 34 },
     clubName: { x: 50, y: 51, size: 22 },
     rank: { x: 50, y: 70, size: 22 },
+    competitionName: { x: 50, y: 79, size: 18 },
   },
 };
 
@@ -239,6 +240,7 @@ const buildPrintHtml = (certificate, settings) => {
         ${fieldBlock('field', 'Athlete Name', certificate.athlete_name, positions.athleteName)}
         ${fieldBlock('field', 'Club Name', certificate.club_name, positions.clubName)}
         ${fieldBlock('field', 'Rank', rankValue, positions.rank)}
+        ${fieldBlock('field', 'Competition Name', certificate.competition_name, positions.competitionName)}
         <div class="footer">${safe(settings.channel || 'platform_4')}</div>
       </div>
     </body>
