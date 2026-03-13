@@ -99,6 +99,10 @@ dist/
 # OS files
 Thumbs.db
 
+# JetBrains / IntelliJ
+.idea/
+*.iml
+
 # Local environment overrides
 .env.local
 .env.development.local

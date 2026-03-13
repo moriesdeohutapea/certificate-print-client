@@ -25,32 +25,43 @@ npm run start:prod
 Shortcut command:
 
 ```bash
-npm run start:mac
 npm run start:win
-npm run start:prod:mac
 npm run start:prod:win
 ```
+
+OS wrapper script command:
+
+```bash
+npm run run:local:win
+npm run run:prod:win
+```
+
+Wrapper script behavior:
+
+- Cek `node` dan `npm` otomatis
+- Jika `node` belum ada:
+  - Windows: coba install via `winget install OpenJS.NodeJS.LTS`
+- Jika `node_modules` belum ada: otomatis jalankan `npm install`
+- Jika install/start gagal: script akan self-heal (verify npm cache, reinstall dependency, lalu retry start sekali)
+- Lalu menjalankan app sesuai mode local/prod
 
 ## Build
 
 Package app:
 
 ```bash
-npm run package:mac
 npm run package:win
 ```
 
 Make distributable:
 
 ```bash
-npm run make:mac
 npm run make:win
 ```
 
 Production build:
 
 ```bash
-npm run make:prod:mac
 npm run make:prod:win
 ```
 
